@@ -24,7 +24,7 @@ This roadmap takes the project from a fresh Next.js + Supabase setup to a functi
 **Plans**: 2 plans
 
 Plans:
-- [x] 01-01: Project initialization and Supabase Auth setup.
+- [ ] 01-01: Project initialization and Supabase Auth setup.
 - [ ] 01-02: Database schema design and Row-Level Security (RLS) implementation.
 
 ### Phase 2: Booking Engine
@@ -38,7 +38,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [x] 02-01: Location input UI and distance/fare calculation logic.
+- [ ] 02-01: Location input UI and distance/fare calculation logic.
 - [ ] 02-02: Vehicle selection interface and booking creation workflow.
 
 ### Phase 3: Ride Lifecycle
