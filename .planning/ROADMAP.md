@@ -38,7 +38,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Location input UI and distance/fare calculation logic.
+- [x] 02-01: Location input UI and distance/fare calculation logic.
 - [ ] 02-02: Vehicle selection interface and booking creation workflow.
 
 ### Phase 3: Ride Lifecycle

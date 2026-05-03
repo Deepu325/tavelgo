@@ -2,15 +2,28 @@
 
 A streamlined cab booking platform facilitating fast booking, transparent pricing, and simple driver interaction.
 
-## Core Value
-Fast booking + transparent pricing + simple driver interaction.
+## 1. Project Context & Vision
 
-## What This Is
-A web application built with Next.js and Supabase for customers to book cabs and drivers to manage ride requests.
+**Name:** Cab Booking Web App
+**Core Value:** A streamlined cab booking platform (MVP) focusing on fast booking, transparent pricing, and driver-user interaction.
 
-## What This Is NOT
-- A full-scale Uber/Lyft clone with real-time GPS tracking (MVP focus).
-- A payment gateway integration (pricing logic included, but payments are out of scope for MVP).
+## 2. Technology Stack
+
+- **Frontend:** React (via Vite)
+- **Styling:** Tailwind CSS v4 + ShadCN UI
+- **Backend:** Node.js + Express
+- **Database:** MongoDB (via Mongoose)
+- **State Management:** Zustand
+- **Icons:** Lucide React
+- **Authentication:** Custom JWT-based Auth
+
+## 3. Architecture & Patterns
+
+- **Monorepo Structure:** Separate `frontend` and `backend` directories.
+- **API Communication:** RESTful endpoints in Express.
+- **Server-Side Pricing:** Fares are exclusively calculated on the Express backend to prevent tampering.
+- **Authentication:** JWT tokens stored in HTTP-only cookies or local storage, with Express middleware for Role-Based Access Control (RBAC).
+- **Atomic Transactions:** Mongoose transactions (or atomic updates) to prevent race conditions during booking acceptance.
 
 ## Target Users
 - **Daily commuters**: People needing reliable rides to work/home.

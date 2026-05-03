@@ -2,71 +2,56 @@
 
 ⚙️ TRD — Technical Requirements Document
 
-You suggested Next.js + Supabase, not MERN. That’s fine—but don’t mix stacks randomly.
-
-🧠 Tech Stack (Clean Version)
-- Frontend: Next.js (React)
-- Styling: Tailwind CSS
-- Components: ShadCN UI
-- Backend: Supabase (Auth + DB)
-- Deployment: Vercel
-
-👉 This is actually cleaner than MERN for your scope.
+🧠 Tech Stack (MERN)
+- **Frontend**: React (Vite)
+- **Styling**: Tailwind CSS
+- **Components**: ShadCN UI
+- **Backend**: Node.js + Express
+- **Database**: MongoDB (Mongoose)
+- **Deployment**: Render / Vercel
 
 🧱 Architecture
-- Frontend handles UI + API calls
-- Supabase handles:
-  - Authentication
-  - Database
-  - Storage
+- **Frontend (`/frontend`)**: Handles UI, state (Zustand), and API calls (Axios/Fetch) to the Express backend.
+- **Backend (`/backend`)**: Exposes RESTful APIs, handles business logic, and interacts with MongoDB.
 
-🗄️ Database Tables (Supabase)
+🗄️ Database Collections (MongoDB)
 
 **Users**
-- id
-- name
-- phone
-- role
-
-**Drivers**
-- id
-- user_id
-- vehicle_type
-- is_available
+- `_id`: ObjectId
+- `name`: String
+- `phone`: String
+- `email`: String
+- `password`: String (Hashed)
+- `role`: Enum ('customer', 'driver', 'admin')
 
 **Vehicles**
-- type
-- base_fare
-- per_km_rate
-- local_package
+- `_id`: ObjectId
+- `type`: String ('Hatchback', 'Sedan', 'SUV')
+- `base_fare`: Number
+- `per_km_rate`: Number
+- `is_active`: Boolean
 
 **Bookings**
-- id
-- user_id
-- driver_id
-- pickup
-- drop
-- distance
-- fare
-- status
+- `_id`: ObjectId
+- `customer`: ObjectId (ref: User)
+- `driver`: ObjectId (ref: User)
+- `pickup`: String
+- `drop`: String
+- `distance`: Number
+- `fare`: Number
+- `status`: Enum ('pending', 'accepted', 'in_progress', 'completed', 'cancelled')
 
 💰 Fare Logic
-
 Fare = BaseFare + (Distance × Rate)
-
-👉 Must be calculated server-side (Supabase functions)
+👉 Must be calculated server-side in the Express backend.
 
 🔌 Integrations
 - Optional: Google Maps API (distance)
-- Otherwise: manual distance input
+- Otherwise: mock distance logic on the backend for MVP
 
 🔐 Security
-- Supabase Auth
-- Role-based row-level security (RLS)
-
-👉 If you skip RLS, users can access others’ data. That’s a serious flaw.
+- Authentication: Custom JWT (JSON Web Tokens)
+- Authorization: Middleware to verify user roles (Customer vs Driver).
 
 ⚡ State Management
-- React Context or Zustand
-
-👉 Don’t over-engineer with Redux unless needed.
+- Zustand (Frontend)
