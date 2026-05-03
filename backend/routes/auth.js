@@ -1,68 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const { register, login, getMe } = require('../controllers/authController');
+const authMiddleware = require('../middleware/auth');
 
-router.post('/register', async (req, res) => {
-  try {
-    const { name, email, password, role } = req.body;
-    
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
+// @route   POST /api/auth/register
+router.post('/register', register);
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+// @route   POST /api/auth/login
+router.post('/login', login);
 
-    user = new User({
-      name,
-      email,
-      password: hashedPassword,
-      role: role || 'customer',
-    });
-
-    await user.save();
-
-    const payload = { user: { id: user.id, role: user.role } };
-    const secret = process.env.JWT_SECRET || 'fallback_secret';
-    
-    jwt.sign(payload, secret, { expiresIn: '1d' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token, role: user.role });
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).send('Server error');
-  }
-});
-
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    const payload = { user: { id: user.id, role: user.role } };
-    const secret = process.env.JWT_SECRET || 'fallback_secret';
-
-    jwt.sign(payload, secret, { expiresIn: '1d' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token, role: user.role });
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).send('Server error');
-  }
-});
+// @route   GET /api/auth/me (protected)
+router.get('/me', authMiddleware, getMe);
 
 module.exports = router;
