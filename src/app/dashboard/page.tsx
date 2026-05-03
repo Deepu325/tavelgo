@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { logout } from '@/app/auth/actions'
+import { BookingForm } from '@/components/BookingForm'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -40,16 +41,12 @@ export default async function DashboardPage() {
         </div>
       </header>
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-4xl space-y-6">
-          <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border bg-white p-6 shadow-sm">
-              <h3 className="font-semibold text-gray-900">Book a Ride</h3>
-              <p className="mt-2 text-sm text-gray-500">
-                Get a cab in seconds. Transparent pricing.
-              </p>
-              <Button className="mt-4 w-full bg-blue-600">New Booking</Button>
-            </div>
+        <div className="mx-auto max-w-4xl space-y-8">
+          <section className="flex flex-col items-center">
+            <BookingForm />
+          </section>
+
+          <section className="grid gap-6 md:grid-cols-2">
             <div className="rounded-xl border bg-white p-6 shadow-sm">
               <h3 className="font-semibold text-gray-900">My History</h3>
               <p className="mt-2 text-sm text-gray-500">
@@ -57,7 +54,14 @@ export default async function DashboardPage() {
               </p>
               <Button variant="outline" className="mt-4 w-full">View History</Button>
             </div>
-          </div>
+            <div className="rounded-xl border bg-white p-6 shadow-sm">
+              <h3 className="font-semibold text-gray-900">Support</h3>
+              <p className="mt-2 text-sm text-gray-500">
+                Need help with a ride or payment?
+              </p>
+              <Button variant="outline" className="mt-4 w-full">Get Help</Button>
+            </div>
+          </section>
         </div>
       </main>
     </div>
