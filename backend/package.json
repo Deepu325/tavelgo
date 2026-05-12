@@ -1,12 +1,21 @@
 {
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
   "dependencies": {
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.4.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.6.1"
+    "mongoose": "^9.6.1",
+    "razorpay": "^2.9.6",
+    "socket.io": "^4.8.3",
+    "winston": "^3.19.0"
   }
 }

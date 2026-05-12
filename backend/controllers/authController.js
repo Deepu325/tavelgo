@@ -27,6 +27,7 @@ const register = async (req, res, next) => {
       email,
       password: hashedPassword,
       role: role || 'customer',
+      isVerified: role === 'driver' ? false : true,
     });
 
     // Generate JWT
@@ -65,6 +66,10 @@ const login = async (req, res, next) => {
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials.' });
+    }
+
+    if (user.isBlocked) {
+      return res.status(403).json({ message: 'Your account has been blocked. Contact support.' });
     }
 
     // Compare passwords

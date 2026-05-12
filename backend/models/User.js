@@ -25,11 +25,33 @@ const userSchema = new mongoose.Schema(
       enum: ['customer', 'driver', 'admin'],
       default: 'customer',
     },
+    // Production v2.0 Additions
+    location: {
+      type: { type: String, default: 'Point' },
+      coordinates: { type: [Number], default: [0, 0] }, // [lng, lat]
+    },
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+    isBusy: {
+      type: Boolean,
+      default: false,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
 
-// Index email for fast lookups
-userSchema.index({ email: 1 });
+// Indexes
+// `unique: true` on email already creates a unique index, so keep this schema clean.
+userSchema.index({ location: '2dsphere' }); // Critical for driver matching
 
 module.exports = mongoose.model('User', userSchema);

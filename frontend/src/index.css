@@ -1,3 +1,107 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  color: #E2E8F0;
+  background-color: #050816;
+  --color-primary: #7C3AED;
+  --color-success: #22C55E;
+  --color-danger: #EF4444;
+  --color-background: #050816;
+  --color-card: rgba(15, 23, 42, 0.92);
+  --color-text: #E2E8F0;
+  --color-secondary: #94A3B8;
+  --color-border: rgba(148, 163, 184, 0.18);
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top left, rgba(124, 58, 237, 0.14), transparent 25%),
+    radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.12), transparent 22%),
+    var(--color-background);
+  color: var(--color-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.btn-primary {
+  @apply rounded-[12px] text-white transition;
+  background-color: var(--color-primary);
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.08);
+}
+
+.btn-primary:hover {
+  background-color: rgba(124, 58, 237, 0.9);
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid rgba(124, 58, 237, 0.5);
+  outline-offset: 2px;
+}
+
+.btn-secondary {
+  @apply rounded-[12px] transition hover:bg-slate-900;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.08);
+  background-color: rgba(15, 23, 42, 0.9);
+}
+
+.btn-success {
+  @apply rounded-[12px] text-white transition;
+  background-color: var(--color-success);
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.08);
+}
+
+.btn-success:hover {
+  background-color: rgba(16, 185, 129, 0.9);
+}
+
+.btn-danger {
+  @apply rounded-[12px] text-white transition;
+  background-color: var(--color-danger);
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.08);
+}
+
+.btn-danger:hover {
+  background-color: rgba(239, 68, 68, 0.9);
+}
+
+.card {
+  @apply rounded-[12px];
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 32px 80px rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(22px);
+}
+
+.input-field {
+  @apply w-full rounded-[12px] px-4 py-3 outline-none;
+  border: 1px solid var(--color-border);
+  background-color: rgba(15, 23, 42, 0.95);
+  color: var(--color-text);
+}
+
+.input-field::placeholder {
+  color: #94A3B8;
+}
+
+.input-field:focus {
+  border-color: rgba(124, 58, 237, 0.85);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.18);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}

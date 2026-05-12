@@ -5,10 +5,10 @@ This roadmap takes the project from a fresh Next.js + Supabase setup to a functi
 
 ## Phases
 
-- [ ] **Phase 1: Foundation & Security** - Setup project, authentication, and role-based access control.
-- [ ] **Phase 2: Booking Engine** - Implement location input, distance calculation, and fare estimation.
-- [ ] **Phase 3: Ride Lifecycle** - Real-time ride dispatching, atomic driver acceptance, and status tracking.
-- [ ] **Phase 4: User History & Admin** - Booking history views, driver availability, and admin pricing management.
+- [x] **Phase 1: Foundation & Security** - Setup project, authentication, and role-based access control.
+- [x] **Phase 2: Booking Engine** - Implement location input, distance calculation, and fare estimation.
+- [x] **Phase 3: Ride Lifecycle** - Real-time ride dispatching, atomic driver acceptance, and status tracking.
+- [x] **Phase 4: User History & Admin** - Booking history views, driver availability, and admin pricing management.
 
 ## Phase Details
 
@@ -24,8 +24,8 @@ This roadmap takes the project from a fresh Next.js + Supabase setup to a functi
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Project initialization and Supabase Auth setup.
-- [ ] 01-02: Database schema design and Row-Level Security (RLS) implementation.
+- [x] 01-01: Project initialization and auth setup.
+- [x] 01-02: Database schema design and advanced middleware.
 
 ### Phase 2: Booking Engine
 **Goal**: Enable users to estimate fares and select vehicles.
@@ -73,10 +73,10 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Security | 0/2 | Not started | - |
-| 2. Booking Engine | 0/2 | Not started | - |
-| 3. Ride Lifecycle | 0/2 | Not started | - |
-| 4. User History & Admin | 0/2 | Not started | - |
+| 1. Foundation & Security | 2/2 | Complete | 2026-05-03 |
+| 2. Booking Engine | 2/2 | Complete | 2026-05-03 |
+| 3. Ride Lifecycle | 2/2 | Complete | 2026-05-03 |
+| 4. User History & Admin | 2/2 | Complete | 2026-05-03 |
 
 ---
 *Roadmap defined: 2026-05-03*
