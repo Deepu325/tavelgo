@@ -1,7 +1,8 @@
 {
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "seed:users": "node scripts/seedUsers.js"
   },
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",

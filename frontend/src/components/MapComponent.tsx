@@ -1,4 +1,4 @@
-import { GoogleMap, DirectionsRenderer, useJsApiLoader } from '@react-google-maps/api';
+import { GoogleMap, DirectionsRenderer, Polyline } from '@react-google-maps/api';
 import { useState, useEffect } from 'react';
 
 const mapContainerStyle = {
@@ -15,36 +15,75 @@ const defaultCenter = {
 interface MapComponentProps {
   pickup: string;
   destination: string;
+  isLoaded: boolean;
 }
 
-const MapComponent = ({ pickup, destination }: MapComponentProps) => {
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-    libraries: ['places'],
-  });
-
+const MapComponent = ({ pickup, destination, isLoaded }: MapComponentProps) => {
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [routePath, setRoutePath] = useState<google.maps.LatLngLiteral[] | null>(null);
 
   useEffect(() => {
-    if (!pickup || !destination || !window.google || !window.google.maps?.DirectionsService) return;
+    if (!pickup || !destination || !window.google || !window.google.maps) return;
 
-    const directionsService = new window.google.maps.DirectionsService();
+    const googleMaps = window.google.maps as any;
+    setDirections(null);
+    setRoutePath(null);
 
-    directionsService.route(
-      {
-        origin: pickup,
-        destination: destination,
-        travelMode: window.google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (status === window.google.maps.DirectionsStatus.OK) {
-          setDirections(result);
-        } else {
-          console.error(`Error fetching directions: ${status}`);
-        }
+    const tryNewRoutesApi = async () => {
+      if (!googleMaps.importLibrary) return false;
+      try {
+        const routesLib = await googleMaps.importLibrary('routes');
+        if (!routesLib?.Route) return false;
+
+        const routeService = new routesLib.Route();
+        routeService.computeRoutes(
+          {
+            origin: { query: pickup },
+            destination: { query: destination },
+            travelMode: googleMaps.TravelMode.DRIVING,
+          },
+          (result: any, status: string) => {
+            if (status !== 'OK' || !result.routes?.[0]) {
+              return;
+            }
+            const encodedPolyline = result.routes[0]?.polyline?.encodedPolyline;
+            if (encodedPolyline && googleMaps.geometry?.encoding?.decodePath) {
+              const decodedPath = googleMaps.geometry.encoding.decodePath(encodedPolyline);
+              setRoutePath(decodedPath.map((point: any) => ({ lat: point.lat(), lng: point.lng() })));
+            }
+          }
+        );
+        return true;
+      } catch (err) {
+        console.error('Failed to load routes library', err);
+        return false;
       }
-    );
+    };
+
+    const loadRoute = async () => {
+      const usedNewRoutes = await tryNewRoutesApi();
+      if (usedNewRoutes) return;
+
+      if (googleMaps.DirectionsService) {
+        const directionsService = new googleMaps.DirectionsService();
+        directionsService.route(
+          {
+            origin: pickup,
+            destination: destination,
+            travelMode: googleMaps.TravelMode.DRIVING,
+          },
+          (result: any, status: any) => {
+            if (status === googleMaps.DirectionsStatus.OK) {
+              setDirections(result);
+            } else {
+              console.error(`Error fetching directions: ${status}`);
+            }
+          }
+        );
+      }
+    };
+
+    loadRoute();
   }, [pickup, destination]);
 
   if (!isLoaded) {
@@ -96,6 +135,16 @@ const MapComponent = ({ pickup, destination }: MapComponentProps) => {
               strokeOpacity: 0.8
             },
             suppressMarkers: false,
+          }}
+        />
+      )}
+      {routePath && (
+        <Polyline
+          path={routePath}
+          options={{
+            strokeColor: '#a855f7',
+            strokeWeight: 4,
+            strokeOpacity: 0.8,
           }}
         />
       )}

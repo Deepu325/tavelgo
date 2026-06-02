@@ -10,14 +10,29 @@ const logger = require('./utils/logger');
 
 const http = require('http');
 const { Server } = require('socket.io');
+const User = require('./models/User');
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+const LOCAL_HOSTS = ['localhost', '127.0.0.1'];
+const isAllowedDevOrigin = (origin) => {
+  try {
+    const url = new URL(origin);
+    return LOCAL_HOSTS.includes(url.hostname);
+  } catch (err) {
+    return false;
+  }
+};
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (process.env.CLIENT_URL === origin || isAllowedDevOrigin(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -32,6 +47,29 @@ io.on('connection', (socket) => {
     logger.info(`🏠 User ${userId} joined their personal room`);
   });
 
+  // Receive driver location updates and broadcast to clients
+  socket.on('driver:location', async (payload) => {
+    try {
+      if (!payload || !payload.userId || !payload.coords) return;
+
+      // Persist driver location (optional)
+      await User.findByIdAndUpdate(payload.userId, {
+        location: { type: 'Point', coordinates: [payload.coords.lng, payload.coords.lat] },
+        isOnline: true,
+      });
+
+      // Broadcast location to all connected clients (can be optimized to rooms/nearby)
+      io.emit('driver-location', {
+        id: payload.userId,
+        lat: payload.coords.lat,
+        lng: payload.coords.lng,
+        timestamp: payload.timestamp || Date.now(),
+      });
+    } catch (err) {
+      logger.error('Error handling driver:location', err);
+    }
+  });
+
   socket.on('disconnect', () => {
     logger.info(`🔌 User disconnected: ${socket.id}`);
   });
@@ -44,7 +82,11 @@ app.set('io', io);
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (process.env.CLIENT_URL === origin || isAllowedDevOrigin(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );

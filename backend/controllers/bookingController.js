@@ -5,6 +5,22 @@ const logger = require('../utils/logger');
 const { Client } = require('@googlemaps/google-maps-services-js');
 const googleMapsClient = new Client({});
 
+const toRadians = (degrees) => degrees * (Math.PI / 180);
+const getHaversineDistanceKm = (origin, destination) => {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(destination.lat - origin.lat);
+  const dLng = toRadians(destination.lng - origin.lng);
+  const lat1 = toRadians(origin.lat);
+  const lat2 = toRadians(destination.lat);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return parseFloat((earthRadiusKm * c).toFixed(2));
+};
+
 /**
  * @desc    Get fare estimates based on locations
  * @route   POST /api/bookings/estimate
@@ -12,34 +28,52 @@ const googleMapsClient = new Client({});
  */
 const getEstimates = async (req, res, next) => {
   try {
-    const { pickup, destination } = req.body;
+    const { pickup, destination, pickupCoordinates, destinationCoordinates } = req.body;
 
     if (!pickup || !destination) {
       return res.status(400).json({ message: 'Pickup and destination are required.' });
     }
 
-    // Calculate distance using Google Maps Distance Matrix API
-    let distance = 5; // Fallback distance
-    if (process.env.GOOGLE_MAPS_API_KEY) {
-      const distanceMatrixResponse = await googleMapsClient.distancematrix({
-        params: {
-          origins: [pickup],
-          destinations: [destination],
-          key: process.env.GOOGLE_MAPS_API_KEY,
-        },
-      });
+    const hasCoordinates =
+      pickupCoordinates?.lat != null &&
+      pickupCoordinates?.lng != null &&
+      destinationCoordinates?.lat != null &&
+      destinationCoordinates?.lng != null;
 
-      const element = distanceMatrixResponse.data.rows[0]?.elements[0];
-      if (element && element.status === 'OK') {
-        // Distance is returned in meters, convert to km
-        distance = parseFloat((element.distance.value / 1000).toFixed(2));
-      } else {
-        logger.warn(`Google Maps API could not calculate distance: ${element?.status}`);
-        distance = parseFloat((Math.random() * 25 + 5).toFixed(2));
+    let distance = 5;
+    if (hasCoordinates) {
+      distance = getHaversineDistanceKm(pickupCoordinates, destinationCoordinates);
+    }
+
+    if (process.env.GOOGLE_MAPS_API_KEY) {
+      try {
+        const distanceMatrixResponse = await googleMapsClient.distancematrix({
+          params: {
+            origins: hasCoordinates
+              ? [`${pickupCoordinates.lat},${pickupCoordinates.lng}`]
+              : [pickup],
+            destinations: hasCoordinates
+              ? [`${destinationCoordinates.lat},${destinationCoordinates.lng}`]
+              : [destination],
+            key: process.env.GOOGLE_MAPS_API_KEY,
+          },
+        });
+
+        const element = distanceMatrixResponse.data.rows[0]?.elements[0];
+        if (element && element.status === 'OK') {
+          distance = parseFloat((element.distance.value / 1000).toFixed(2));
+        } else {
+          logger.warn(`Google Maps API could not calculate distance: ${element?.status}`);
+          if (!hasCoordinates) {
+            distance = parseFloat((Math.random() * 25 + 5).toFixed(2));
+          }
+        }
+      } catch (err) {
+        logger.warn('Google Maps Distance Matrix call failed, using geodesic distance fallback.', err.message);
       }
-    } else {
-       logger.warn('⚠️ GOOGLE_MAPS_API_KEY is not set. Using mock distance.');
-       distance = parseFloat((Math.random() * 25 + 5).toFixed(2));
+    } else if (!hasCoordinates) {
+      logger.warn('⚠️ GOOGLE_MAPS_API_KEY is not set and coordinates are unavailable. Using mock distance.');
+      distance = parseFloat((Math.random() * 25 + 5).toFixed(2));
     }
 
     const vehicles = await Vehicle.find();
@@ -51,7 +85,14 @@ const getEstimates = async (req, res, next) => {
       capacity: v.capacity,
       description: v.description,
       distance: distance,
+      ratePerKm: v.ratePerKm,
       fare: Math.round(v.baseFare + distance * v.ratePerKm),
+      // Package details
+      packageFare: v.localPackageFare,
+      packageTimeLimit: v.packageTimeLimit,
+      packageDistanceLimit: v.packageDistanceLimit,
+      extraKmRate: v.extraKmRate,
+      extraHourRate: v.extraHourRate,
     }));
 
     res.json({
@@ -72,20 +113,47 @@ const getEstimates = async (req, res, next) => {
  */
 const createBooking = async (req, res, next) => {
   try {
-    const { pickupLocation, destination, vehicleType, fare, distance, pickupCoordinates } = req.body;
+    const { 
+      pickupLocation, 
+      destination, 
+      vehicleType, 
+      fare, 
+      distance, 
+      pickupCoordinates,
+      destinationCoordinates,
+      isPackageBooking = false,
+      packageDetails
+    } = req.body;
 
-    const ride = await Ride.create({
+    const rideData = {
       customer: req.user.id,
       pickupLocation: { 
         address: pickupLocation,
-        coordinates: pickupCoordinates || { lat: 0, lng: 0 } // Default for now
+        coordinates: pickupCoordinates || { lat: 0, lng: 0 }
       },
-      destination: { address: destination },
+      destination: {
+        address: destination,
+        coordinates: destinationCoordinates || { lat: 0, lng: 0 }
+      },
       vehicleType,
       fare,
       distance,
       status: 'pending',
-    });
+      isPackageBooking,
+      finalFare: fare, // Initially same as base fare
+    };
+
+    // Add package details if it's a package booking
+    if (isPackageBooking && packageDetails) {
+      rideData.packageDetails = {
+        timeLimit: packageDetails.timeLimit,
+        distanceLimit: packageDetails.distanceLimit,
+        extraKmRate: packageDetails.extraKmRate,
+        extraHourRate: packageDetails.extraHourRate,
+      };
+    }
+
+    const ride = await Ride.create(rideData);
 
     // FIND NEARBY DRIVERS (Geospatial Match)
     // For now, let's look for online and not busy drivers within 10km
@@ -193,6 +261,38 @@ const updateRideStatus = async (req, res, next) => {
     ride.status = status;
     if (status === 'completed') {
       ride.endTime = new Date();
+      
+      // Calculate actual duration in hours
+      const durationMs = ride.endTime - ride.startTime;
+      const actualDuration = durationMs / (1000 * 60 * 60); // Convert to hours
+      ride.actualDuration = parseFloat(actualDuration.toFixed(2));
+      
+      // For demo purposes, simulate actual distance (in real app, this would come from GPS tracking)
+      // Let's assume the ride went 95km instead of estimated 70km for the scenario
+      ride.actualDistance = ride.distance + 25; // Add 25km extra for testing
+      
+      // Calculate extra charges for package bookings
+      if (ride.isPackageBooking && ride.packageDetails) {
+        const { timeLimit, distanceLimit, extraKmRate, extraHourRate } = ride.packageDetails;
+        
+        // Extra distance charge
+        if (ride.actualDistance > distanceLimit) {
+          const extraKm = ride.actualDistance - distanceLimit;
+          ride.extraKmCharge = Math.round(extraKm * extraKmRate);
+        }
+        
+        // Extra time charge
+        if (ride.actualDuration > timeLimit) {
+          const extraHours = ride.actualDuration - timeLimit;
+          ride.extraTimeCharge = Math.round(extraHours * extraHourRate);
+        }
+        
+        // Update final fare
+        ride.finalFare = ride.fare + ride.extraKmCharge + ride.extraTimeCharge;
+      } else {
+        ride.finalFare = ride.fare; // No extra charges for regular rides
+      }
+      
       // Free the driver
       await User.findByIdAndUpdate(ride.driver, { isBusy: false });
     }

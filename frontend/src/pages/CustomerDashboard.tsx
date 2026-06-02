@@ -1,13 +1,14 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Car, Clock, LogOut, User } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
 import { socketService } from '../services/socketService';
-import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+import { useJsApiLoader } from '@react-google-maps/api';
+import type { Library } from '@googlemaps/js-api-loader';
 import MapComponent from '../components/MapComponent';
 
-const libraries: ("places")[] = ['places'];
+const libraries: Library[] = ['places', 'geometry'];
 
 interface Estimate {
   vehicleId: string;
@@ -16,7 +17,13 @@ interface Estimate {
   capacity: number;
   description: string;
   distance: number;
+  ratePerKm?: number;
   fare: number;
+  packageTimeLimit?: number;
+  packageDistanceLimit?: number;
+  extraKmRate?: number;
+  extraHourRate?: number;
+  packageFare?: number;
 }
 
 const CustomerDashboard = () => {
@@ -27,39 +34,25 @@ const CustomerDashboard = () => {
   const [destination, setDestination] = useState('');
   const [loading, setLoading] = useState(false);
   const [estimates, setEstimates] = useState<Estimate[]>([]);
-  const [selectedEstimate, setSelectedEstimate] = useState<Estimate | null>(null);
-  const [bookingLoading, setBookingLoading] = useState(false);
-  const [activeRide, setActiveRide] = useState<any>(null);
-  const [bookingMessage, setBookingMessage] = useState('');
-  const [pickupRef, setPickupRef] = useState<google.maps.places.Autocomplete | null>(null);
-  const [destinationRef, setDestinationRef] = useState<google.maps.places.Autocomplete | null>(null);
+  const [bookingType, setBookingType] = useState<'regular' | 'package'>('regular');
+  const [activeRide, setActiveRide] = useState<any | null>(null);
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
+  const [selectedEstimate, setSelectedEstimate] = useState<any | null>(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingMessage, setBookingMessage] = useState('');
+  const [placesAvailable, setPlacesAvailable] = useState(true);
+  const pickupInputRef = useRef<HTMLInputElement | null>(null);
+  const destinationInputRef = useRef<HTMLInputElement | null>(null);
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
     libraries,
+    version: 'weekly',
   });
 
-  const onPickupPlaceChanged = () => {
-    if (pickupRef !== null) {
-      const place = pickupRef.getPlace();
-      setPickup(place.formatted_address || place.name || '');
-      if (place.geometry?.location) {
-        setPickupCoords({
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng(),
-        });
-      }
-    }
-  };
-
-  const onDestinationPlaceChanged = () => {
-    if (destinationRef !== null) {
-      const place = destinationRef.getPlace();
-      setDestination(place.formatted_address || place.name || '');
-    }
-  };
 
   useEffect(() => {
     if (user?.id) {
@@ -85,6 +78,85 @@ const CustomerDashboard = () => {
     };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const googleMaps = (window as any).google?.maps;
+    if (!googleMaps?.places) {
+      setPlacesAvailable(false);
+      return;
+    }
+
+    const attachAutocomplete = (
+      input: HTMLInputElement | null,
+      setAddress: (address: string) => void,
+      setCoords: (coords: { lat: number; lng: number } | null) => void
+    ) => {
+      if (!input) return null;
+
+      try {
+        const isNewAutocomplete = !!googleMaps.places.PlaceAutocompleteElement;
+        const autocomplete = isNewAutocomplete
+          ? new googleMaps.places.PlaceAutocompleteElement({
+              input,
+              fields: ['formatted_address', 'name', 'geometry'],
+            })
+          : new googleMaps.places.Autocomplete(input, {
+              fields: ['formatted_address', 'name', 'geometry'],
+            });
+
+        const onPlaceChanged = (handler: () => void) => {
+          if (typeof autocomplete.addListener === 'function') {
+            return autocomplete.addListener('place_changed', handler);
+          }
+          if (typeof autocomplete.addEventListener === 'function') {
+            return autocomplete.addEventListener('place_changed', handler);
+          }
+          return null;
+        };
+
+        onPlaceChanged(() => {
+          const place = autocomplete.getPlace();
+          setAddress(place.formatted_address || place.name || input.value || '');
+          if (place.geometry?.location) {
+            setCoords({
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+            });
+          }
+        });
+
+        return autocomplete;
+      } catch (err) {
+        console.error('Places autocomplete init failed', err);
+      }
+
+      return null;
+    };
+
+    const pickupAuto = attachAutocomplete(
+      pickupInputRef.current,
+      setPickup,
+      setPickupCoords
+    );
+    const destinationAuto = attachAutocomplete(
+      destinationInputRef.current,
+      setDestination,
+      setDestinationCoords
+    );
+
+    setPlacesAvailable(!!pickupAuto && !!destinationAuto);
+
+    return () => {
+      if (pickupAuto && googleMaps.event?.clearInstanceListeners) {
+        googleMaps.event.clearInstanceListeners(pickupAuto);
+      }
+      if (destinationAuto && googleMaps.event?.clearInstanceListeners) {
+        googleMaps.event.clearInstanceListeners(destinationAuto);
+      }
+    };
+  }, [isLoaded]);
+
   const fetchActiveRide = async () => {
     try {
       const { data } = await api.get('/bookings/active');
@@ -105,8 +177,19 @@ const CustomerDashboard = () => {
     setEstimates([]);
     setSelectedEstimate(null);
     try {
-      const { data } = await api.post('/bookings/estimate', { pickup, destination });
-      setEstimates(data.estimates);
+      const { data } = await api.post('/bookings/estimate', {
+        pickup,
+        destination,
+        pickupCoordinates: pickupCoords,
+        destinationCoordinates: destinationCoords,
+      });
+
+      const estimatesFromServer = data.estimates.map((estimate: Estimate) => ({
+        ...estimate,
+        distance: routeDistanceKm ?? estimate.distance,
+      }));
+
+      setEstimates(estimatesFromServer);
     } catch (err) {
       alert('Failed to get estimates');
     } finally {
@@ -118,14 +201,30 @@ const CustomerDashboard = () => {
     if (!selectedEstimate) return;
     setBookingLoading(true);
     try {
-      const { data } = await api.post('/bookings', {
+      const bookingData: any = {
         pickupLocation: pickup,
         destination,
         vehicleType: selectedEstimate.type,
         fare: selectedEstimate.fare,
         distance: selectedEstimate.distance,
+        routeDistanceKm: routeDistanceKm ?? selectedEstimate.distance,
         pickupCoordinates: pickupCoords,
-      });
+        destinationCoordinates: destinationCoords,
+      };
+
+      // Add package details if it's a package booking
+      if (bookingType === 'package') {
+        bookingData.isPackageBooking = true;
+        bookingData.packageDetails = {
+          timeLimit: selectedEstimate.packageTimeLimit,
+          distanceLimit: selectedEstimate.packageDistanceLimit,
+          extraKmRate: selectedEstimate.extraKmRate,
+          extraHourRate: selectedEstimate.extraHourRate,
+        };
+        bookingData.fare = selectedEstimate.packageFare; // Use package fare
+      }
+
+      const { data } = await api.post('/bookings', bookingData);
       setActiveRide(data.ride);
       setEstimates([]);
       setPickup('');
@@ -141,6 +240,133 @@ const CustomerDashboard = () => {
       setBookingLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!isLoaded || !pickup || !destination) {
+      setRouteDistanceKm(null);
+      return;
+    }
+
+    const googleMaps = (window as any).google?.maps;
+    if (!googleMaps) return;
+
+    const computeStraightLineDistance = (origin: { lat: number; lng: number }, destination: { lat: number; lng: number }) => {
+      if (!googleMaps.geometry?.spherical?.computeDistanceBetween) return null;
+      const from = new googleMaps.LatLng(origin.lat, origin.lng);
+      const to = new googleMaps.LatLng(destination.lat, destination.lng);
+      return parseFloat((googleMaps.geometry.spherical.computeDistanceBetween(from, to) / 1000).toFixed(2));
+    };
+
+    const computeDistanceFromPath = (path: any[]) => {
+      if (!path || path.length < 2 || !googleMaps.geometry?.spherical?.computeDistanceBetween) {
+        return null;
+      }
+
+      let meters = 0;
+      for (let i = 0; i < path.length - 1; i += 1) {
+        meters += googleMaps.geometry.spherical.computeDistanceBetween(
+          path[i],
+          path[i + 1]
+        );
+      }
+
+      return parseFloat((meters / 1000).toFixed(2));
+    };
+
+    if (googleMaps.routes?.Route) {
+      const routeService = new googleMaps.routes.Route();
+      routeService.computeRoutes(
+        {
+          origin: { query: pickup },
+          destination: { query: destination },
+          travelMode: googleMaps.TravelMode.DRIVING,
+        },
+        (result: any, status: string) => {
+          if (status === 'OK' && result.routes?.[0]) {
+            const route = result.routes[0];
+            if (route.legs?.length && route.legs[0].distance?.value) {
+              const km = parseFloat((route.legs[0].distance.value / 1000).toFixed(2));
+              setRouteDistanceKm(km);
+              return;
+            }
+
+            if (route.polyline?.encodedPolyline && googleMaps.geometry?.encoding?.decodePath) {
+              const decodedPath = googleMaps.geometry.encoding.decodePath(route.polyline.encodedPolyline);
+              const km = computeDistanceFromPath(decodedPath);
+              setRouteDistanceKm(km);
+              return;
+            }
+          }
+
+          setRouteDistanceKm(null);
+        }
+      );
+      return;
+    }
+
+    if (googleMaps.importLibrary) {
+      googleMaps.importLibrary('routes').then((routesLib: any) => {
+        if (routesLib?.Route) {
+          const routeService = new routesLib.Route();
+          routeService.computeRoutes(
+            {
+              origin: { query: pickup },
+              destination: { query: destination },
+              travelMode: googleMaps.TravelMode.DRIVING,
+            },
+            (result: any, status: string) => {
+              if (status === 'OK' && result.routes?.[0]) {
+                const route = result.routes[0];
+                if (route.legs?.length && route.legs[0].distance?.value) {
+                  setRouteDistanceKm(parseFloat((route.legs[0].distance.value / 1000).toFixed(2)));
+                  return;
+                }
+
+                if (route.polyline?.encodedPolyline && googleMaps.geometry?.encoding?.decodePath) {
+                  const decodedPath = googleMaps.geometry.encoding.decodePath(route.polyline.encodedPolyline);
+                  const km = computeDistanceFromPath(decodedPath);
+                  setRouteDistanceKm(km);
+                  return;
+                }
+              }
+
+              if (pickupCoords && destinationCoords) {
+                const straightKm = computeStraightLineDistance(pickupCoords, destinationCoords);
+                setRouteDistanceKm(straightKm);
+                return;
+              }
+
+              setRouteDistanceKm(null);
+            }
+          );
+        }
+      }).catch(() => {
+        if (pickupCoords && destinationCoords) {
+          setRouteDistanceKm(computeStraightLineDistance(pickupCoords, destinationCoords));
+        }
+      });
+      return;
+    }
+
+    if (googleMaps.DirectionsService) {
+      const directionsService = new googleMaps.DirectionsService();
+      directionsService.route(
+        {
+          origin: pickup,
+          destination: destination,
+          travelMode: googleMaps.TravelMode.DRIVING,
+        },
+        (result: any, status: any) => {
+          if (status === googleMaps.DirectionsStatus.OK && result.routes?.[0]?.legs?.[0]?.distance?.value) {
+            const km = parseFloat((result.routes[0].legs[0].distance.value / 1000).toFixed(2));
+            setRouteDistanceKm(km);
+          } else {
+            setRouteDistanceKm(null);
+          }
+        }
+      );
+    }
+  }, [isLoaded, pickup, destination]);
 
   const cancelRide = async () => {
     if (!activeRide) return;
@@ -212,7 +438,7 @@ const CustomerDashboard = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="h-64 lg:h-full min-h-[300px] w-full rounded-3xl overflow-hidden border border-white/10 shadow-inner relative">
-                <MapComponent pickup={activeRide.pickupLocation.address} destination={activeRide.destination.address} />
+                <MapComponent pickup={activeRide?.pickupLocation?.address || ''} destination={activeRide?.destination?.address || ''} isLoaded={isLoaded} />
               </div>
               <div className="space-y-8">
                 <div className="rounded-3xl bg-slate-950/70 border border-white/10 p-6">
@@ -278,58 +504,72 @@ const CustomerDashboard = () => {
             </div>
 
             <div className="mt-8 grid gap-6">
+              {/* Booking Type Selection */}
+              <div className="flex gap-4 p-1 rounded-3xl bg-slate-950/80 border border-white/10">
+                <button
+                  onClick={() => {
+                    setBookingType('regular');
+                    setSelectedEstimate(null);
+                  }}
+                  className={`flex-1 py-3 px-6 rounded-2xl font-bold transition-all ${
+                    bookingType === 'regular'
+                      ? 'bg-purple-600 text-white shadow-lg'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Regular Ride
+                </button>
+                <button
+                  onClick={() => {
+                    setBookingType('package');
+                    setSelectedEstimate(null);
+                  }}
+                  className={`flex-1 py-3 px-6 rounded-2xl font-bold transition-all ${
+                    bookingType === 'package'
+                      ? 'bg-purple-600 text-white shadow-lg'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Local Package
+                </button>
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Pickup location</label>
                   <div className="rounded-3xl border border-white/10 bg-slate-950/80 px-4 py-3">
-                    {isLoaded ? (
-                      <Autocomplete onLoad={(ref) => setPickupRef(ref)} onPlaceChanged={onPickupPlaceChanged}>
-                        <input
-                          type="text"
-                          name="pickup"
-                          value={pickup}
-                          onChange={(e) => setPickup(e.target.value)}
-                          placeholder="Enter pickup point"
-                          className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none"
-                        />
-                      </Autocomplete>
-                    ) : (
-                      <input
-                        type="text"
-                        name="pickup"
-                        value={pickup}
-                        onChange={(e) => setPickup(e.target.value)}
-                        placeholder="Loading map…"
-                        className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none"
-                        disabled
-                      />
+                    <input
+                      ref={pickupInputRef}
+                      type="text"
+                      name="pickup"
+                      value={pickup}
+                      onChange={(e) => setPickup(e.target.value)}
+                      placeholder="Enter pickup point"
+                      className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none"
+                    />
+                    {isLoaded && !placesAvailable && (
+                      <p className="mt-2 text-xs text-amber-300">
+                        Google Maps autocomplete is unavailable. You can still enter pickup manually.
+                      </p>
                     )}
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Destination</label>
                   <div className="rounded-3xl border border-white/10 bg-slate-950/80 px-4 py-3">
-                    {isLoaded ? (
-                      <Autocomplete onLoad={(ref) => setDestinationRef(ref)} onPlaceChanged={onDestinationPlaceChanged}>
-                        <input
-                          type="text"
-                          name="destination"
-                          value={destination}
-                          onChange={(e) => setDestination(e.target.value)}
-                          placeholder="Enter dropoff point"
-                          className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none"
-                        />
-                      </Autocomplete>
-                    ) : (
-                      <input
-                        type="text"
-                        name="destination"
-                        value={destination}
-                        onChange={(e) => setDestination(e.target.value)}
-                        placeholder="Loading map…"
-                        className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none"
-                        disabled
-                      />
+                    <input
+                      ref={destinationInputRef}
+                      type="text"
+                      name="destination"
+                      value={destination}
+                      onChange={(e) => setDestination(e.target.value)}
+                      placeholder="Enter dropoff point"
+                      className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none"
+                    />
+                    {isLoaded && !placesAvailable && (
+                      <p className="mt-2 text-xs text-amber-300">
+                        Google Maps autocomplete is unavailable. You can still enter destination manually.
+                      </p>
                     )}
                   </div>
                 </div>
@@ -356,7 +596,9 @@ const CustomerDashboard = () => {
 
               {estimates.length > 0 && (
                 <div className="rounded-3xl bg-slate-950/80 border border-white/10 p-5 space-y-4">
-                  <p className="text-sm font-semibold text-slate-300">Available ride options</p>
+                  <p className="text-sm font-semibold text-slate-300">
+                    Available {bookingType === 'package' ? 'packages' : 'ride options'}
+                  </p>
                   <div className="grid gap-3">
                     {estimates.map((estimate) => (
                       <button
@@ -369,13 +611,25 @@ const CustomerDashboard = () => {
                         }`}
                       >
                         <div className="flex items-center justify-between gap-4">
-                          <div>
+                          <div className="flex-1">
                             <p className="text-white font-semibold">{estimate.name}</p>
                             <p className="text-slate-400 text-sm">{estimate.type} • {estimate.capacity} seats</p>
+                            {bookingType === 'package' && (
+                              <div className="mt-2 text-xs text-slate-500">
+                                <p>{estimate.packageTimeLimit} Hours / {estimate.packageDistanceLimit} KM</p>
+                                <p>Extra: ₹{estimate.extraKmRate}/km • ₹{estimate.extraHourRate}/hr</p>
+                              </div>
+                            )}
                           </div>
                           <div className="text-right">
-                            <p className="text-white font-bold">₹{estimate.fare}</p>
-                            <p className="text-slate-500 text-xs">{estimate.distance} km</p>
+                            <p className="text-white font-bold text-xl">
+                              ₹{bookingType === 'package' ? estimate.packageFare : estimate.fare}
+                            </p>
+                            {bookingType === 'regular' && (
+                              <div className="mt-2 text-xs text-slate-500 space-y-1">
+                                <p>{estimate.distance} km • ₹{estimate.ratePerKm}/km</p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </button>
@@ -398,7 +652,14 @@ const CustomerDashboard = () => {
             </div>
 
             <div className="mt-8 h-[420px] rounded-3xl border border-white/10 overflow-hidden bg-slate-950/70">
-              <MapComponent pickup={pickup || 'Bangalore'} destination={destination || 'Bengaluru'} />
+              <MapComponent pickup={pickup} destination={destination} isLoaded={isLoaded} />
+            </div>
+
+            <div className="mt-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 text-sm text-slate-300">
+              <p className="font-semibold text-white">Route distance</p>
+              <p className="mt-2 text-slate-400">
+                {routeDistanceKm != null ? `${routeDistanceKm} km` : 'Calculating best driving route...'}
+              </p>
             </div>
 
             <div className="mt-6 grid gap-4 text-sm text-slate-400">

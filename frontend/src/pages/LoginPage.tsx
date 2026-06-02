@@ -13,9 +13,6 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const ADMIN_EMAIL = 'admin@cabbook.com';
-  const ADMIN_PASSWORD = 'admin123';
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setError('');
@@ -26,17 +23,10 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
 
-    if (form.email === ADMIN_EMAIL && form.password === ADMIN_PASSWORD) {
-      setAuth({ id: 'admin-000', name: 'Admin', email: ADMIN_EMAIL, role: 'admin' }, 'admin-token');
-      navigate('/admin');
-      setLoading(false);
-      return;
-    }
-
     try {
       const { data } = await api.post('/auth/login', form);
       setAuth(data.user, data.token);
-      navigate(data.user.role === 'driver' ? '/driver/dashboard' : '/customer/dashboard');
+      navigate(data.user.role === 'driver' ? '/driver/dashboard' : data.user.role === 'admin' ? '/admin' : '/customer/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {

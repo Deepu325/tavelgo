@@ -12,6 +12,7 @@ const vehicleSchema = new mongoose.Schema(
       enum: ['5-Seater', 'Innova Crysta', 'Tempo Traveller'],
       required: true,
     },
+    // Regular ride pricing
     baseFare: {
       type: Number,
       required: true,
@@ -20,9 +21,26 @@ const vehicleSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    // Local package pricing
     localPackageFare: {
       type: Number,
       default: 0,
+    },
+    packageTimeLimit: {
+      type: Number, // in hours
+      default: 8,
+    },
+    packageDistanceLimit: {
+      type: Number, // in km
+      default: 80,
+    },
+    extraKmRate: {
+      type: Number, // ₹ per extra km
+      default: 12,
+    },
+    extraHourRate: {
+      type: Number, // ₹ per extra hour
+      default: 200,
     },
     capacity: {
       type: Number,
