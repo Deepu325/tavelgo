@@ -6,21 +6,39 @@ const statusOptions = ['pending', 'accepted', 'ongoing', 'completed', 'cancelled
 
 const AdminBookings = () => {
   const [bookings, setBookings] = useState<Array<any>>([]);
+  const [drivers, setDrivers] = useState<Array<any>>([]);
+  const [selectedDriver, setSelectedDriver] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const loadBookings = async () => {
     try {
       const { data } = await api.get('/admin/bookings');
       setBookings(data);
+      const driverSelection: Record<string, string> = {};
+      data.forEach((booking: any) => {
+        if (booking.driver?._id) {
+          driverSelection[booking._id] = booking.driver._id;
+        }
+      });
+      setSelectedDriver(driverSelection);
     } catch (error) {
       console.error('Failed to load bookings');
+    }
+  };
+
+  const loadDrivers = async () => {
+    try {
+      const { data } = await api.get('/admin/drivers');
+      setDrivers(data.filter((driver: any) => driver.isVerified && !driver.isBlocked));
+    } catch (error) {
+      console.error('Failed to load drivers');
     }
   };
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      await loadBookings();
+      await Promise.all([loadBookings(), loadDrivers()]);
       setLoading(false);
     };
     fetchData();
@@ -32,6 +50,15 @@ const AdminBookings = () => {
       loadBookings();
     } catch (error) {
       console.error('Unable to update booking status');
+    }
+  };
+
+  const assignDriver = async (bookingId: string, driverId: string) => {
+    try {
+      await api.patch(`/admin/bookings/${bookingId}/assign`, { driverId });
+      await loadBookings();
+    } catch (error) {
+      console.error('Unable to assign driver');
     }
   };
 
@@ -76,18 +103,39 @@ const AdminBookings = () => {
                     <td className="px-4 py-4">{booking.vehicle?.type || 'N/A'}</td>
                     <td className="px-4 py-4">₹{booking.fare ?? 'N/A'}</td>
                     <td className="px-4 py-4 capitalize">{booking.status}</td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4 space-y-3">
                       <select
-                        value={booking.status}
-                        onChange={(event) => updateStatus(booking._id, event.target.value)}
-                        className="rounded-3xl border border-white/10 bg-slate-900 px-3 py-2 text-slate-200 outline-none focus:border-purple-500"
+                        value={selectedDriver[booking._id] || ''}
+                        onChange={(event) => setSelectedDriver({ ...selectedDriver, [booking._id]: event.target.value })}
+                        className="mb-2 rounded-3xl border border-white/10 bg-slate-900 px-3 py-2 text-slate-200 outline-none focus:border-purple-500"
                       >
-                        {statusOptions.map((status) => (
-                          <option key={status} value={status} className="bg-slate-950 text-slate-100">
-                            {status}
+                        <option value="">Select driver</option>
+                        {drivers.map((driver) => (
+                          <option key={driver._id} value={driver._id}>
+                            {driver.name} ({driver.vehicle?.number || driver.email})
                           </option>
                         ))}
                       </select>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          onClick={() => assignDriver(booking._id, selectedDriver[booking._id])}
+                          disabled={!selectedDriver[booking._id]}
+                          className="rounded-2xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 transition disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Assign
+                        </button>
+                        <select
+                          value={booking.status}
+                          onChange={(event) => updateStatus(booking._id, event.target.value)}
+                          className="rounded-3xl border border-white/10 bg-slate-900 px-3 py-2 text-slate-200 outline-none focus:border-purple-500"
+                        >
+                          {statusOptions.map((status) => (
+                            <option key={status} value={status} className="bg-slate-950 text-slate-100">
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </td>
                   </tr>
                 ))

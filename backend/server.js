@@ -7,6 +7,8 @@ const dotenv = require('dotenv');
 const errorHandler = require('./middleware/errorHandler');
 const mongoSanitize = require('express-mongo-sanitize');
 const logger = require('./utils/logger');
+const fs = require('fs');
+const path = require('path');
 
 const http = require('http');
 const { Server } = require('socket.io');
@@ -49,6 +51,12 @@ app.use(
   })
 );
 app.use(express.json({ limit: '10kb' })); // Limit body size
+
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // Data sanitization against NoSQL query injection
 // express-mongo-sanitize middleware is incompatible with Express 5 because

@@ -134,7 +134,7 @@ const getBookings = async (req, res, next) => {
   try {
     const bookings = await Ride.find()
       .populate('customer', 'name email')
-      .populate('driver', 'name email')
+      .populate('driver', 'name email vehicle')
       .sort('-createdAt');
 
     res.json(bookings);
@@ -214,6 +214,74 @@ const updateVehiclePricing = async (req, res, next) => {
   }
 };
 
+const createVehiclePricing = async (req, res, next) => {
+  try {
+    const { name, type, baseFare, ratePerKm, localPackageFare = 0, capacity, description } = req.body;
+
+    if (!name || !type || !baseFare || !ratePerKm || !capacity) {
+      return res.status(400).json({ message: 'Vehicle name, type, base fare, rate per km, and capacity are required.' });
+    }
+
+    const existingVehicle = await Vehicle.findOne({ name });
+    if (existingVehicle) {
+      return res.status(400).json({ message: 'Vehicle with this name already exists.' });
+    }
+
+    const vehicle = await Vehicle.create({
+      name,
+      type,
+      baseFare: Number(baseFare),
+      ratePerKm: Number(ratePerKm),
+      localPackageFare: Number(localPackageFare),
+      capacity: Number(capacity),
+      description,
+    });
+
+    res.status(201).json(vehicle);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const assignBookingDriver = async (req, res, next) => {
+  try {
+    const { driverId } = req.body;
+
+    if (!driverId) {
+      return res.status(400).json({ message: 'Driver ID is required.' });
+    }
+
+    const booking = await Ride.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found.' });
+    }
+
+    const driver = await User.findOne({ _id: driverId, role: 'driver', isVerified: true, isBlocked: false });
+    if (!driver) {
+      return res.status(404).json({ message: 'Driver not found or not approved.' });
+    }
+
+    if (booking.driver && booking.driver.toString() !== driverId) {
+      await User.findByIdAndUpdate(booking.driver, { isBusy: false });
+    }
+
+    booking.driver = driverId;
+    if (booking.status === 'pending') {
+      booking.status = 'accepted';
+    }
+    await booking.save();
+    await User.findByIdAndUpdate(driverId, { isBusy: true });
+
+    const populatedBooking = await Ride.findById(booking._id)
+      .populate('customer', 'name email')
+      .populate('driver', 'name email vehicle');
+
+    res.json(populatedBooking);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getSummary,
   getUsers,
@@ -227,4 +295,6 @@ module.exports = {
   updateBookingStatus,
   getVehicles,
   updateVehiclePricing,
+  createVehiclePricing,
+  assignBookingDriver,
 };

@@ -17,6 +17,11 @@ interface Estimate {
   description: string;
   distance: number;
   fare: number;
+  localPackage?: {
+    fare: number;
+    duration: string;
+    info?: string;
+  } | null;
 }
 
 const CustomerDashboard = () => {
@@ -28,6 +33,11 @@ const CustomerDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [estimates, setEstimates] = useState<Estimate[]>([]);
   const [selectedEstimate, setSelectedEstimate] = useState<Estimate | null>(null);
+  const [bookingType, setBookingType] = useState<'local' | 'trip'>('local');
+  const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
+  const [startDate, setStartDate] = useState('');
+  const [returnDate, setReturnDate] = useState('');
+  const [selectedPackageType, setSelectedPackageType] = useState<'standard' | 'local'>('standard');
   const [bookingLoading, setBookingLoading] = useState(false);
   const [activeRide, setActiveRide] = useState<any>(null);
   const [bookingMessage, setBookingMessage] = useState('');
@@ -105,7 +115,7 @@ const CustomerDashboard = () => {
     setEstimates([]);
     setSelectedEstimate(null);
     try {
-      const { data } = await api.post('/bookings/estimate', { pickup, destination });
+      const { data } = await api.post('/bookings/estimate', { pickup, destination, bookingType });
       setEstimates(data.estimates);
     } catch (err) {
       alert('Failed to get estimates');
@@ -116,15 +126,29 @@ const CustomerDashboard = () => {
 
   const bookRide = async () => {
     if (!selectedEstimate) return;
+    if (bookingType === 'trip' && tripType === 'round-trip' && !returnDate) {
+      alert('Please select a return date for a round-trip booking.');
+      return;
+    }
+
     setBookingLoading(true);
     try {
+      const isLocal = bookingType === 'local' && selectedPackageType === 'local' && !!selectedEstimate.localPackage;
+      const fareToSend = isLocal ? selectedEstimate.localPackage!.fare : selectedEstimate.fare;
+
       const { data } = await api.post('/bookings', {
         pickupLocation: pickup,
         destination,
         vehicleType: selectedEstimate.type,
-        fare: selectedEstimate.fare,
+        fare: fareToSend,
         distance: selectedEstimate.distance,
         pickupCoordinates: pickupCoords,
+        bookingType,
+        tripType: bookingType === 'trip' ? tripType : undefined,
+        startDate: bookingType === 'trip' && startDate ? startDate : undefined,
+        returnDate: bookingType === 'trip' && tripType === 'round-trip' ? returnDate : undefined,
+        isLocalPackage: isLocal,
+        localPackageDuration: isLocal ? selectedEstimate.localPackage!.duration : undefined,
       });
       setActiveRide(data.ride);
       setEstimates([]);
@@ -278,6 +302,71 @@ const CustomerDashboard = () => {
             </div>
 
             <div className="mt-8 grid gap-6">
+              <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-4">
+                <p className="text-sm uppercase tracking-[0.18em] text-slate-400 mb-3">Booking type</p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setBookingType('local'); setSelectedPackageType('local'); }}
+                    className={`rounded-3xl px-4 py-2 text-sm font-semibold transition ${bookingType === 'local' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                  >
+                    Local
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBookingType('trip'); setSelectedPackageType('standard'); }}
+                    className={`rounded-3xl px-4 py-2 text-sm font-semibold transition ${bookingType === 'trip' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                  >
+                    Trip / Outstation
+                  </button>
+                </div>
+                {bookingType === 'trip' && (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.18em] text-slate-400 mb-2">Trip type</p>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setTripType('one-way')}
+                          className={`rounded-3xl px-4 py-2 text-sm font-semibold transition ${tripType === 'one-way' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                        >
+                          One-way
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTripType('round-trip')}
+                          className={`rounded-3xl px-4 py-2 text-sm font-semibold transition ${tripType === 'round-trip' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                        >
+                          Round-trip
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Start date</label>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="w-full rounded-3xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none"
+                        />
+                      </div>
+                      {tripType === 'round-trip' && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Return date</label>
+                          <input
+                            type="date"
+                            value={returnDate}
+                            onChange={(e) => setReturnDate(e.target.value)}
+                            className="w-full rounded-3xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Pickup location</label>
@@ -359,26 +448,72 @@ const CustomerDashboard = () => {
                   <p className="text-sm font-semibold text-slate-300">Available ride options</p>
                   <div className="grid gap-3">
                     {estimates.map((estimate) => (
-                      <button
-                        key={estimate.vehicleId}
-                        onClick={() => setSelectedEstimate(estimate)}
-                        className={`w-full rounded-3xl border p-5 text-left transition ${
-                          selectedEstimate?.vehicleId === estimate.vehicleId
-                            ? 'border-purple-500/60 bg-purple-500/10'
-                            : 'border-white/10 bg-slate-950/70 hover:border-purple-500/30 hover:bg-slate-900/80'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <p className="text-white font-semibold">{estimate.name}</p>
-                            <p className="text-slate-400 text-sm">{estimate.type} • {estimate.capacity} seats</p>
+                      <div key={estimate.vehicleId}>
+                        <button
+                          onClick={() => {
+                            setSelectedEstimate(estimate);
+                            setSelectedPackageType(bookingType === 'local' ? 'local' : 'standard');
+                          }}
+                          className={`w-full rounded-3xl border p-5 text-left transition ${
+                            selectedEstimate?.vehicleId === estimate.vehicleId
+                              ? 'border-purple-500/60 bg-purple-500/10'
+                              : 'border-white/10 bg-slate-950/70 hover:border-purple-500/30 hover:bg-slate-900/80'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <p className="text-white font-semibold">{estimate.name}</p>
+                              <p className="text-slate-400 text-sm">{estimate.type} • {estimate.capacity} seats</p>
+                              {estimate.localPackage && (
+                                <p className="text-emerald-300 text-sm mt-1">Local package: ₹{estimate.localPackage.fare} • {estimate.localPackage.duration}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-white font-bold">₹{estimate.fare}</p>
+                              <p className="text-slate-500 text-xs">{estimate.distance} km</p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-white font-bold">₹{estimate.fare}</p>
-                            <p className="text-slate-500 text-xs">{estimate.distance} km</p>
+                        </button>
+
+                        {/* Package selection UI for the selected estimate */}
+                        {selectedEstimate?.vehicleId === estimate.vehicleId && (
+                          <div className="mt-3 rounded-2xl border border-white/10 bg-slate-900 p-4">
+                            <p className="text-sm text-slate-400 mb-2">Choose fare type</p>
+                            <div className="flex gap-3 flex-wrap">
+                              {bookingType === 'trip' ? (
+                                <>
+                                  <button
+                                    onClick={() => setSelectedPackageType('standard')}
+                                    className={`rounded-xl px-4 py-2 ${selectedPackageType === 'standard' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                                  >
+                                    Standard • ₹{estimate.fare}
+                                  </button>
+                                  {estimate.localPackage && (
+                                    <button
+                                      onClick={() => setSelectedPackageType('local')}
+                                      className={`rounded-xl px-4 py-2 ${selectedPackageType === 'local' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                                    >
+                                      Local Package • ₹{estimate.localPackage.fare} • {estimate.localPackage.duration}
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                estimate.localPackage && (
+                                  <button
+                                    onClick={() => setSelectedPackageType('local')}
+                                    className="rounded-xl px-4 py-2 bg-purple-600 text-white"
+                                  >
+                                    Local Package • ₹{estimate.localPackage.fare} • {estimate.localPackage.duration}
+                                  </button>
+                                )
+                              )}
+                            </div>
+                            {selectedPackageType === 'local' && estimate.localPackage?.info && (
+                              <p className="mt-2 text-sm text-slate-400">{estimate.localPackage.info}</p>
+                            )}
                           </div>
-                        </div>
-                      </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

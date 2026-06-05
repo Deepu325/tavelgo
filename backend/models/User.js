@@ -25,6 +25,44 @@ const userSchema = new mongoose.Schema(
       enum: ['customer', 'driver', 'admin'],
       default: 'customer',
     },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    licenseNumber: {
+      type: String,
+      trim: true,
+    },
+    experience: {
+      type: String,
+      trim: true,
+    },
+    driverPhoto: {
+      type: String,
+      trim: true,
+    },
+    vehicle: {
+      number: {
+        type: String,
+        trim: true,
+        sparse: true,
+      },
+      type: {
+        type: String,
+        enum: ['5-Seater', 'Innova Crysta', 'Tempo Traveller', 'Bike', 'Mini'],
+      },
+      model: {
+        type: String,
+        trim: true,
+      },
+      capacity: {
+        type: Number,
+      },
+      photo: {
+        type: String,
+        trim: true,
+      },
+    },
     // Production v2.0 Additions
     location: {
       type: { type: String, default: 'Point' },
@@ -53,5 +91,6 @@ const userSchema = new mongoose.Schema(
 // Indexes
 // `unique: true` on email already creates a unique index, so keep this schema clean.
 userSchema.index({ location: '2dsphere' }); // Critical for driver matching
+userSchema.index({ 'vehicle.number': 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('User', userSchema);

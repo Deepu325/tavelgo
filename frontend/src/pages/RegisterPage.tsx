@@ -8,22 +8,70 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
 
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'customer' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'customer',
+    phone: '',
+    licenseNumber: '',
+    experience: '',
+    vehicleNumber: '',
+    vehicleType: '5-Seater',
+    vehicleModel: '',
+    vehicleCapacity: '4',
+  });
+  const [files, setFiles] = useState({ driverPhoto: null as File | null, vehiclePhoto: null as File | null });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setError('');
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0]) return;
+    const file = e.target.files[0];
+    setFiles({ ...files, [e.target.name]: file });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
     try {
-      const { data } = await api.post('/auth/register', form);
+      let response;
+
+      if (form.role === 'driver') {
+        const formData = new FormData();
+        formData.append('name', form.name);
+        formData.append('email', form.email);
+        formData.append('password', form.password);
+        formData.append('role', form.role);
+        formData.append('phone', form.phone);
+        formData.append('licenseNumber', form.licenseNumber);
+        formData.append('experience', form.experience);
+        formData.append('vehicleNumber', form.vehicleNumber);
+        formData.append('vehicleType', form.vehicleType);
+        formData.append('vehicleModel', form.vehicleModel);
+        formData.append('vehicleCapacity', form.vehicleCapacity);
+        if (files.driverPhoto) {
+          formData.append('driverPhoto', files.driverPhoto);
+        }
+        if (files.vehiclePhoto) {
+          formData.append('vehiclePhoto', files.vehiclePhoto);
+        }
+        response = await api.post('/auth/register', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        response = await api.post('/auth/register', form);
+      }
+
+      const { data } = response;
       setAuth(data.user, data.token);
       navigate(data.user.role === 'driver' ? '/driver/dashboard' : '/customer/dashboard');
     } catch (err: any) {
@@ -165,6 +213,125 @@ const RegisterPage = () => {
                     </button>
                   </div>
                 </div>
+                {form.role === 'driver' && (
+                  <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-5">
+                    <div className="grid gap-4">
+                      <div className="space-y-4">
+                        <label className="block text-sm font-medium text-slate-300">Phone</label>
+                        <input
+                          type="text"
+                          name="phone"
+                          value={form.phone}
+                          onChange={handleChange}
+                          required={form.role === 'driver'}
+                          placeholder="+91 98765 43210"
+                          className="input-field"
+                        />
+                      </div>
+                      <div className="space-y-4">
+                        <label className="block text-sm font-medium text-slate-300">License number</label>
+                        <input
+                          type="text"
+                          name="licenseNumber"
+                          value={form.licenseNumber}
+                          onChange={handleChange}
+                          required={form.role === 'driver'}
+                          placeholder="DL-01-2023-123456"
+                          className="input-field"
+                        />
+                      </div>
+                      <div className="space-y-4">
+                        <label className="block text-sm font-medium text-slate-300">Years of experience</label>
+                        <input
+                          type="text"
+                          name="experience"
+                          value={form.experience}
+                          onChange={handleChange}
+                          required={form.role === 'driver'}
+                          placeholder="5 years"
+                          className="input-field"
+                        />
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="text-sm text-slate-400">Vehicle number</span>
+                          <input
+                            type="text"
+                            name="vehicleNumber"
+                            value={form.vehicleNumber}
+                            onChange={handleChange}
+                            required={form.role === 'driver'}
+                            placeholder="MH12AB1234"
+                            className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-purple-500"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-sm text-slate-400">Vehicle type</span>
+                          <select
+                            name="vehicleType"
+                            value={form.vehicleType}
+                            onChange={handleChange}
+                            className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-purple-500"
+                          >
+                            <option value="5-Seater">5-Seater</option>
+                            <option value="Innova Crysta">Innova Crysta</option>
+                            <option value="Tempo Traveller">Tempo Traveller</option>
+                            <option value="Bike">Bike</option>
+                            <option value="Mini">Mini</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="text-sm text-slate-400">Vehicle model</span>
+                          <input
+                            type="text"
+                            name="vehicleModel"
+                            value={form.vehicleModel}
+                            onChange={handleChange}
+                            required={form.role === 'driver'}
+                            placeholder="Toyota Innova Crysta"
+                            className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-purple-500"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-sm text-slate-400">Capacity</span>
+                          <input
+                            type="number"
+                            name="vehicleCapacity"
+                            value={form.vehicleCapacity}
+                            onChange={handleChange}
+                            required={form.role === 'driver'}
+                            placeholder="4"
+                            className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-purple-500"
+                          />
+                        </label>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="text-sm text-slate-400">Your photo</span>
+                          <input
+                            type="file"
+                            name="driverPhoto"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none file:text-slate-300"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-sm text-slate-400">Vehicle photo</span>
+                          <input
+                            type="file"
+                            name="vehiclePhoto"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none file:text-slate-300"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <button
                   id="register-submit"
                   type="submit"

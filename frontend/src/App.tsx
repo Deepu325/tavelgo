@@ -7,6 +7,7 @@ import HistoryPage from './pages/HistoryPage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/AdminUsers';
 import AdminDrivers from './pages/AdminDrivers';
+import AdminDriverApprovals from './pages/AdminDriverApprovals';
 import AdminPricing from './pages/AdminPricing';
 import AdminBookings from './pages/AdminBookings';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -79,6 +80,14 @@ function App() {
           element={
             <ProtectedRoute role="admin">
               <AdminDrivers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/driver-approvals"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminDriverApprovals />
             </ProtectedRoute>
           }
         />

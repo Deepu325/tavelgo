@@ -9,7 +9,24 @@ const jwt = require('jsonwebtoken');
  */
 const register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const {
+      name,
+      email,
+      password,
+      role,
+      phone,
+      licenseNumber,
+      experience,
+      vehicleNumber,
+      vehicleType,
+      vehicleModel,
+      vehicleCapacity,
+    } = req.body;
+
+    // Check required fields
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required.' });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -17,18 +34,47 @@ const register = async (req, res, next) => {
       return res.status(400).json({ message: 'User already exists with this email.' });
     }
 
+    if (role === 'driver') {
+      if (!phone || !licenseNumber || !experience || !vehicleNumber || !vehicleType || !vehicleModel || !vehicleCapacity) {
+        return res.status(400).json({ message: 'Driver registration requires phone, license number, experience, and vehicle details.' });
+      }
+
+      const existingVehicle = await User.findOne({ 'vehicle.number': vehicleNumber });
+      if (existingVehicle) {
+        return res.status(400).json({ message: 'Vehicle number already registered. Please use a different vehicle number.' });
+      }
+    }
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user (whitelist fields — never pass req.body directly)
-    const user = await User.create({
+    const driverPhotoFile = req.files?.driverPhoto?.[0];
+    const vehiclePhotoFile = req.files?.vehiclePhoto?.[0];
+
+    const userData = {
       name,
       email,
       password: hashedPassword,
       role: role || 'customer',
       isVerified: role === 'driver' ? false : true,
-    });
+      phone: role === 'driver' ? phone : undefined,
+      licenseNumber: role === 'driver' ? licenseNumber : undefined,
+      experience: role === 'driver' ? experience : undefined,
+      driverPhoto: role === 'driver' && driverPhotoFile ? `/uploads/${driverPhotoFile.filename}` : undefined,
+      vehicle: role === 'driver'
+        ? {
+            number: vehicleNumber,
+            type: vehicleType,
+            model: vehicleModel,
+            capacity: Number(vehicleCapacity),
+            photo: vehiclePhotoFile ? `/uploads/${vehiclePhotoFile.filename}` : undefined,
+          }
+        : undefined,
+    };
+
+    // Create user (whitelist fields — never pass req.body directly)
+    const user = await User.create(userData);
 
     // Generate JWT
     const payload = { user: { id: user._id, role: user.role } };

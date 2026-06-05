@@ -12,7 +12,7 @@ const googleMapsClient = new Client({});
  */
 const getEstimates = async (req, res, next) => {
   try {
-    const { pickup, destination } = req.body;
+    const { pickup, destination, bookingType = 'local' } = req.body;
 
     if (!pickup || !destination) {
       return res.status(400).json({ message: 'Pickup and destination are required.' });
@@ -44,15 +44,37 @@ const getEstimates = async (req, res, next) => {
 
     const vehicles = await Vehicle.find();
 
-    const estimates = vehicles.map((v) => ({
-      vehicleId: v._id,
-      name: v.name,
-      type: v.type,
-      capacity: v.capacity,
-      description: v.description,
-      distance: distance,
-      fare: Math.round(v.baseFare + distance * v.ratePerKm),
-    }));
+    const estimates = vehicles
+      .filter((v) => {
+        const hasLocal = v.localPackageFare && Number(v.localPackageFare) > 0;
+        return bookingType === 'local' ? hasLocal : true;
+      })
+      .map((v) => {
+        // Standard per-km fare
+        const standardFare = Math.round(v.baseFare + distance * v.ratePerKm);
+
+        // Local package info (optional)
+        const hasLocal = v.localPackageFare && Number(v.localPackageFare) > 0;
+        const localPackage = hasLocal
+          ? {
+              fare: Number(v.localPackageFare),
+              // allow admin to set duration in hours via `localPackageDurationHours`, fallback to 8h
+              duration: v.localPackageDurationHours ? `${v.localPackageDurationHours} hours` : '8 hours',
+              info: v.localPackageInfo || v.description || '',
+            }
+          : null;
+
+        return {
+          vehicleId: v._id,
+          name: v.name,
+          type: v.type,
+          capacity: v.capacity,
+          description: v.description,
+          distance: distance,
+          fare: bookingType === 'local' && localPackage ? localPackage.fare : standardFare,
+          localPackage,
+        };
+      });
 
     res.json({
       pickup,
@@ -72,19 +94,56 @@ const getEstimates = async (req, res, next) => {
  */
 const createBooking = async (req, res, next) => {
   try {
-    const { pickupLocation, destination, vehicleType, fare, distance, pickupCoordinates } = req.body;
+        const {
+      pickupLocation,
+      destination,
+      vehicleType,
+      fare,
+      distance,
+      pickupCoordinates,
+      bookingType = 'local',
+      tripType,
+      startDate,
+      returnDate,
+      isLocalPackage = false,
+      localPackageDuration,
+    } = req.body;
+
+    if (!pickupLocation || !destination) {
+      return res.status(400).json({ message: 'Pickup and destination are required.' });
+    }
+
+    if (!vehicleType || fare === undefined || distance === undefined) {
+      return res.status(400).json({ message: 'Vehicle type, fare, and distance are required.' });
+    }
+
+    if (bookingType === 'trip' && tripType === 'round-trip' && !returnDate) {
+      return res.status(400).json({ message: 'Return date is required for round-trip bookings.' });
+    }
 
     const ride = await Ride.create({
       customer: req.user.id,
-      pickupLocation: { 
+      bookingType,
+      tripType,
+      startDate: startDate ? new Date(startDate) : undefined,
+      returnDate: returnDate ? new Date(returnDate) : undefined,
+      isLocalPackage,
+      localPackageDuration,
+      pickupLocation: {
         address: pickupLocation,
-        coordinates: pickupCoordinates || { lat: 0, lng: 0 } // Default for now
+        coordinates: pickupCoordinates || { lat: 0, lng: 0 }, // Default for now
       },
       destination: { address: destination },
       vehicleType,
       fare,
       distance,
       status: 'pending',
+    });
+
+    console.log('SAVED RIDE');
+    console.log({
+      pickup: ride.pickupLocation,
+      destination: ride.destination
     });
 
     // FIND NEARBY DRIVERS (Geospatial Match)
@@ -270,6 +329,12 @@ const getActiveRide = async (req, res, next) => {
     const ride = await Ride.findOne(query)
       .populate('driver', 'name phone location')
       .populate('customer', 'name phone');
+
+    console.log('ACTIVE RIDE RESPONSE');
+    console.log({
+      pickup: ride?.pickupLocation,
+      destination: ride?.destination
+    });
 
     res.json(ride || null);
   } catch (error) {

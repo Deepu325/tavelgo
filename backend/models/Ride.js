@@ -11,6 +11,29 @@ const rideSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+    bookingType: {
+      type: String,
+      enum: ['local', 'trip'],
+      default: 'local',
+      required: true,
+    },
+    tripType: {
+      type: String,
+      enum: ['one-way', 'round-trip'],
+    },
+    startDate: {
+      type: Date,
+    },
+    returnDate: {
+      type: Date,
+    },
+    isLocalPackage: {
+      type: Boolean,
+      default: false,
+    },
+    localPackageDuration: {
+      type: String,
+    },
     vehicleType: {
       type: String,
       required: true,

@@ -15,6 +15,8 @@ const {
   updateBookingStatus,
   getVehicles,
   updateVehiclePricing,
+  createVehiclePricing,
+  assignBookingDriver,
 } = require('../controllers/adminController');
 
 router.use(authMiddleware);
@@ -34,6 +36,9 @@ router.get('/bookings', getBookings);
 router.patch('/bookings/:id/status', updateBookingStatus);
 
 router.get('/vehicles', getVehicles);
+router.post('/vehicles', createVehiclePricing);
 router.patch('/vehicles/:id', updateVehiclePricing);
+
+router.patch('/bookings/:id/assign', assignBookingDriver);
 
 module.exports = router;

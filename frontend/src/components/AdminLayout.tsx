@@ -5,7 +5,8 @@ import { useAuthStore } from '../store/authStore';
 const navLinks = [
   { to: '/admin', label: 'Dashboard', icon: Home },
   { to: '/admin/users', label: 'Users', icon: Users },
-  { to: '/admin/drivers', label: 'Drivers', icon: Truck },
+  { to: '/admin/driver-approvals', label: 'Driver Approvals', icon: Truck },
+  { to: '/admin/drivers', label: 'All Drivers', icon: Truck },
   { to: '/admin/pricing', label: 'Pricing', icon: DollarSign },
   { to: '/admin/bookings', label: 'Bookings', icon: ClipboardList },
 ];
